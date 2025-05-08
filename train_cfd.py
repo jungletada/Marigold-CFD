@@ -20,7 +20,6 @@
 # More information about the method can be found at https://marigoldmonodepth.github.io
 # --------------------------------------------------------------------------
 import os
-
 import argparse
 import logging
 import shutil
@@ -52,6 +51,7 @@ from src.util.logging_util import (
     tb_logger,
 )
 from src.util.slurm_util import get_local_scratch_dir, is_on_slurm
+
 import warnings
 warnings.filterwarnings("ignore")
 

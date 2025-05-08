@@ -29,7 +29,7 @@ from diffusers import (
     DDIMScheduler,
     DiffusionPipeline,
     LCMScheduler,
-    UNet2DConditionModel,
+    # UNet2DConditionModel,
 )
 from diffusers.utils import BaseOutput
 from PIL import Image
@@ -39,6 +39,7 @@ from torchvision.transforms.functional import pil_to_tensor, resize
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
 
+from .unet_2d_cond_cfd import UNet2DConditionModelCFD
 from .util.batchsize import find_batch_size
 from .util.ensemble import ensemble_depth
 from .util.image_util import (
@@ -111,7 +112,7 @@ class CFDiffPipleline(DiffusionPipeline):
 
     def __init__(
         self,
-        unet: UNet2DConditionModel,
+        unet: UNet2DConditionModelCFD,
         vae: AutoencoderKL,
         scheduler: Union[DDIMScheduler, LCMScheduler],
         text_encoder: CLIPTextModel,

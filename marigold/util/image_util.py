@@ -18,10 +18,10 @@
 # More information about the method can be found at https://marigoldmonodepth.github.io
 # --------------------------------------------------------------------------
 
-
+import torch
 import matplotlib
 import numpy as np
-import torch
+
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms.functional import resize
 

@@ -135,16 +135,16 @@ The [LCM checkpoint](https://huggingface.co/prs-eth/marigold-lcm-v1-0) is distil
 
 This setting corresponds to our paper. For academic comparison, please run with this setting.
 
-```bash
+<!-- ```bash
 python run.py \
     --checkpoint prs-eth/marigold-v1-0 \
     --denoise_steps 50 \
     --ensemble_size 10 \
     --input_rgb_dir input/in-the-wild_example \
     --output_dir output/in-the-wild_example
-```
-
-You can find all results in `output/in-the-wild_example`. Enjoy!
+``` -->
+<!-- 
+You can find all results in `output/in-the-wild_example`. Enjoy! -->
 
 ### ⚙️ Inference settings
 

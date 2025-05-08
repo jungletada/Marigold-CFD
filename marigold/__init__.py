@@ -18,5 +18,6 @@
 # --------------------------------------------------------------------------
 
 
-from .marigold_pipeline import MarigoldPipeline, MarigoldDepthOutput  # noqa: F401
+# from .marigold_pipeline import MarigoldPipeline, MarigoldDepthOutput  # noqa: F401
 from .cfd_pipeline import CFDiffPipleline, CFDFieldOutput
+

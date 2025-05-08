@@ -21,9 +21,8 @@
 # More information about the method can be found at https://marigoldmonodepth.github.io
 # --------------------------------------------------------------------------
 
-
-import logging
 import os
+import logging
 import shutil
 from datetime import datetime
 from typing import List, Union
@@ -40,7 +39,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from PIL import Image
 
-from marigold.cfd_pipeline import CFDiffPipleline, CFDFieldOutput
 from src.util import metric
 from src.util.data_loader import skip_first_batches
 from src.util.logging_util import tb_logger, eval_dic_to_text
@@ -50,6 +48,7 @@ from src.util.metric import MetricTracker
 from src.util.multi_res_noise import multi_res_noise_like
 from src.util.alignment import align_depth_least_square
 from src.util.seeding import generate_seed_sequence
+from marigold.cfd_pipeline import CFDiffPipleline, CFDFieldOutput
 
 
 class CFDTrainer:
@@ -84,10 +83,6 @@ class CFDTrainer:
         # Adapt input layers, from input channels 4 to 12.
         if self.model.unet.config["in_channels"] != 12:
             self._replace_unet_conv_in()
-
-        # # Encode text prompt -> prompt as condition
-        # self.model.encode_empty_text()
-        # self.empty_text_embed = self.model.empty_text_embed.detach().clone().to(device)
 
         self.model.unet.enable_xformers_memory_efficient_attention()
 
