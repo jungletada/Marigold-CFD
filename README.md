@@ -1,10 +1,10 @@
-# Marigold: Repurposing Diffusion-Based Image Generators for Monocular Depth Estimation
+# Marigold for CFD
 
-**CVPR 2024 (Oral, Best Paper Award Candidate)**
+<!-- **CVPR 2024 (Oral, Best Paper Award Candidate)** -->
 
 This repository represents the official implementation of the paper titled "Repurposing Diffusion-Based Image Generators for Monocular Depth Estimation".
 
-[![Website](doc/badges/badge-website.svg)](https://marigoldmonodepth.github.io)
+<!-- [![Website](doc/badges/badge-website.svg)](https://marigoldmonodepth.github.io)
 [![Paper](https://img.shields.io/badge/arXiv-PDF-b31b1b)](https://arxiv.org/abs/2312.02145)
 [![Hugging Face (LCM) Space](https://img.shields.io/badge/🤗%20Hugging%20Face%20(LCM)-Space-yellow)](https://huggingface.co/spaces/prs-eth/marigold-lcm)
 [![Hugging Face (LCM) Model](https://img.shields.io/badge/🤗%20Hugging%20Face%20(LCM)-Model-green)](https://huggingface.co/prs-eth/marigold-lcm-v1-0)
@@ -16,16 +16,16 @@ This repository represents the official implementation of the paper titled "Repu
 <!-- [![HF Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-blue)]() -->
 <!-- [![Docker](doc/badges/badge-docker.svg)]() -->
 
-[Bingxin Ke](http://www.kebingxin.com/),
+<!-- [Bingxin Ke](http://www.kebingxin.com/),
 [Anton Obukhov](https://www.obukhov.ai/),
 [Shengyu Huang](https://shengyuh.github.io/),
 [Nando Metzger](https://nandometzger.github.io/),
 [Rodrigo Caye Daudt](https://rcdaudt.github.io/),
-[Konrad Schindler](https://scholar.google.com/citations?user=FZuNgqIAAAAJ&hl=en )
+[Konrad Schindler](https://scholar.google.com/citations?user=FZuNgqIAAAAJ&hl=en ) -->
 
 We present Marigold, a diffusion model, and associated fine-tuning protocol for monocular depth estimation. Its core principle is to leverage the rich visual knowledge stored in modern generative image models. Our model, derived from Stable Diffusion and fine-tuned with synthetic data, can zero-shot transfer to unseen data, offering state-of-the-art monocular depth estimation results.
 
-![teaser](doc/teaser_collage_transparant.png)
+<!-- ![teaser](doc/teaser_collage_transparant.png) -->
 
 <!-- ## 📢 News
 2024-05-28: Training code is released.<br>
@@ -103,9 +103,12 @@ We provide several ways to install the dependencies.
     ```bash
     python -m venv venv/marigold
     source venv/marigold/bin/activate
-    pip install -r requirements.txt
     ```
 
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
 Keep the environment activated before running the inference script. 
 Activate the environment again after restarting the terminal session.
 
@@ -264,12 +267,13 @@ Only the U-Net is updated and saved during training. To use the inference pipeli
 
 Please refer to [this](CONTRIBUTING.md) instruction.
 
-## 🤔 Troubleshooting
+## Quantitive Results
+|              |    MAE |   RMSE |    R2  |    MAPE |
+|:-------------|-------:|-------:|-------:|--------:|
+| pressure     |  0.0598|  0.0767|  0.8698|  27.2687|
+| temperature  |  0.0256|  0.0407|  0.8941|  24.3532|
+| velocity     |  0.0336|  0.0549|  0.9560|  13.4108|
 
-| Problem                                                                                                                                      | Solution                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| (Windows) Invalid DOS bash script on WSL                                                                                                     | Run `dos2unix <script_name>` to convert script format          |
-| (Windows) error on WSL: `Could not load library libcudnn_cnn_infer.so.8. Error: libcuda.so: cannot open shared object file: No such file or directory` | Run `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH` |
 
 
 ## 🎓 Citation

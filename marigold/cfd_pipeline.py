@@ -29,7 +29,7 @@ from diffusers import (
     DDIMScheduler,
     DiffusionPipeline,
     LCMScheduler,
-    # UNet2DConditionModel,
+    UNet2DConditionModel,
 )
 from diffusers.utils import BaseOutput
 from PIL import Image
@@ -39,7 +39,7 @@ from torchvision.transforms.functional import pil_to_tensor, resize
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
 
-from .unet_2d_cond_cfd import UNet2DConditionModelCFD
+from .models.unet_2d_condition_cfd import UNet2DConditionModelCFD
 from .util.batchsize import find_batch_size
 from .util.ensemble import ensemble_depth
 from .util.image_util import (
@@ -112,7 +112,7 @@ class CFDiffPipleline(DiffusionPipeline):
 
     def __init__(
         self,
-        unet: UNet2DConditionModelCFD,
+        unet: UNet2DConditionModel,
         vae: AutoencoderKL,
         scheduler: Union[DDIMScheduler, LCMScheduler],
         text_encoder: CLIPTextModel,
@@ -211,28 +211,6 @@ class CFDiffPipleline(DiffusionPipeline):
         self._check_inference_step(denoising_steps)
 
         resample_method: InterpolationMode = get_tv_resample_method(resample_method)
-
-        # # ----------------- Image Preprocess -----------------
-        # # Convert to torch tensor
-        # if isinstance(input_image, Image.Image):
-        #     input_image = input_image.convert("RGB")
-        #     # convert to torch tensor [H, W, rgb] -> [rgb, H, W]
-        #     rgb = pil_to_tensor(input_image)
-        #     rgb = rgb.unsqueeze(0)  # [1, rgb, H, W]
-        # elif isinstance(input_image, torch.Tensor):
-        #     rgb = input_image
-        # else:
-        #     raise TypeError(f"Unknown input type: {type(input_image) = }")
-        
-        # input_size = rgb.shape
-        # assert (
-        #     4 == rgb.dim() and 3 == input_size[-3]
-        # ), f"Wrong input shape {input_size}, expected [1, rgb, H, W]"
-
-        # # Normalize rgb values
-        # rgb_norm: torch.Tensor = rgb / 255.0 * 2.0 - 1.0  #  [0, 255] -> [-1, 1]
-        # rgb_norm = rgb_norm.to(self.dtype)
-        # assert rgb_norm.min() >= -1.0 and rgb_norm.max() <= 1.0
         
         # ----------------- Predicting depth -----------------
         # Batch repeated input image

@@ -26,8 +26,12 @@ from PIL import Image
 
 import torch
 from tqdm.auto import tqdm
+from sklearn.metrics import r2_score, mean_absolute_percentage_error
+
 from marigold import CFDiffPipleline
 from src.dataset import CFDDataset
+from src.dataset.cfd_dataset import \
+    (STAT_pressure, STAT_temperature, STAT_velocity)
 EXTENSION_LIST = [".jpg", ".jpeg", ".png"]
 
 
@@ -102,7 +106,7 @@ def get_args():
     parser.add_argument(
         "--color_map",
         type=str,
-        default="                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       ",
+        default="Spectral",
         help="Colormap used to render depth predictions.",
     )
 
@@ -154,6 +158,50 @@ def save_as_color(depth_colored, output_dir_color, pred_name_base):
         )
     depth_colored.save(colored_save_path)
     
+
+def load_scale(key):
+    if key.__contains__('pressure'):
+        return STAT_pressure
+    elif key.__contains__('temperature'):
+        return STAT_temperature
+    elif key.__contains__('velocity'):
+        return STAT_velocity
+    else:
+        raise NotImplementedError
+
+
+def evaluate(field_pred, field_label, key, mask=None, denormalize=True):
+    if denormalize:
+        stat = load_scale(key)
+        field_pred * (stat['max'] - stat['min']) + stat['min']
+        field_label * (stat['max'] - stat['min']) + stat['min']
+
+    if mask is not None:
+        field_pred *= mask
+        field_label *= mask
+    
+    # Flatten arrays to 1D for metric calculations
+    y_true = field_label.flatten()
+    y_pred = field_pred.flatten()
+
+    # # Remove NaNs and Infs
+    # valid_mask = np.isfinite(y_true) & np.isfinite(y_pred)
+    # y_true = y_true[valid_mask]
+    # y_pred = y_pred[valid_mask]
+
+    # Compute metrics
+    mae = np.mean(np.abs(y_true - y_pred))
+    rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
+    r2 = r2_score(y_true, y_pred)
+    mape = mean_absolute_percentage_error(y_true, y_pred) * 100
+
+    return {
+        'MAE': mae,
+        'RMSE': rmse,
+        'R2': r2,
+        'MAPE': mape,
+    }
+
 
 if "__main__" == __name__:
     logging.basicConfig(level=logging.INFO)
@@ -245,7 +293,14 @@ if "__main__" == __name__:
         dataset_dir=args.base_data_dir,
         mode='test',
     )
+    num = len(test_dataset.filenames)
+    logging.info(f'Number of samples in Test: {num}')
     # -------------------- Inference and saving --------------------
+    metrics = ['MAE', 'RMSE', 'R2', 'MAPE']
+    fields = ['pressure', 'temperature', 'velocity']
+    sum_results = {field: {metric: 0. for metric in metrics} for field in fields}
+    avg_results = {field: {metric: 0. for metric in metrics} for field in fields}
+    
     with torch.no_grad():
         for test_data in tqdm(test_dataset, desc="Estimating depth", leave=True):
             # Random number generator
@@ -269,9 +324,24 @@ if "__main__" == __name__:
                 generator=generator,
             )
 
-            depth_pred: np.ndarray = pipe_out.depth_np
+            pred: np.ndarray = pipe_out.depth_np
             depth_colored: Image.Image = pipe_out.depth_colored
-            pred_name_base = test_data['file_name'] + '_' + test_data['prompt'].replace(' field', "")
+            prompt = test_data['prompt'].replace(' field', "")
+            pred_name_base = test_data['file_name'] + '_' + prompt
+
+            label = (test_data["outputs"] + 1.) / 2.   
+            label = torch.clip(label, 0., 1.).squeeze().cpu().numpy()  # (H, W)
+            mask = test_data["mask"].squeeze().cpu().numpy()           # (H, W)
+
+            res = evaluate(
+                     field_pred=pred,
+                     field_label=label,
+                     mask=mask,
+                     key=prompt)
+            
+            for key, value in res.items():
+                sum_results[prompt][key] += value
+                
             # # Save as npy
             # save_as_npy(depth_pred=depth_pred, 
             #             output_dir_npy=output_dir_npy, 
@@ -283,6 +353,11 @@ if "__main__" == __name__:
             #             pred_name_base=pred_name_base)
 
             # Save as Colorize figure
-            save_as_color(depth_colored=depth_colored,
-                          output_dir_color=output_dir_color,
-                          pred_name_base=pred_name_base)
+            # save_as_color(depth_colored=depth_colored,
+            #               output_dir_color=output_dir_color,
+            #               pred_name_base=pred_name_base)
+            
+        avg_results = {prompt: {metric: value / num for metric, value in value_dict.items()} 
+                       for prompt, value_dict in sum_results.items()}
+        
+        logging.info(avg_results)
