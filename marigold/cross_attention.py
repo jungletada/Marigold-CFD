@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
+from diffusers import UNet2DConditionModel
 
 
 class CrossAttentionFusion(nn.Module):
-    def __init__(self, embed_dim=16, num_heads=4):
+    def __init__(self, embed_dim=32, num_heads=4):
         """
         Fusion module that integrates rgb, flow, and depth latents via cross-attention.
         Args:
@@ -20,6 +21,7 @@ class CrossAttentionFusion(nn.Module):
         self.cross_attn2 = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
         # Projection to reduce fused depth features back to 4 channels.
         self.proj_out_depth = nn.Conv2d(embed_dim * 3, 4, kernel_size=1)
+        self.new_conv_in = nn.Conv2d(4, 320, kernel_size=3, padding=1)
         
     def forward(self, sample):
         """
@@ -56,7 +58,6 @@ class CrossAttentionFusion(nn.Module):
         
         # 5. Project fused depth features back to 4 channels.
         fused = self.proj_out_depth(fused_depth_feat) + depth_latent  # [B, 4, H, W]
-        
-        # 6. Concatenate rgb, flow, and fused depth back along channel dimension to get 12-channel output.
-        # fused = torch.cat([rgb_latent, flow_latent, fused_depth], dim=1)  # [B, 12, H, W]
+        fused = self.new_conv_in(fused)
+
         return fused

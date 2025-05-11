@@ -19,14 +19,16 @@
 
 import os
 import argparse
-import logging
+
 from glob import glob
 import numpy as np
 from PIL import Image
-
+import logging
 import torch
 from tqdm.auto import tqdm
-from sklearn.metrics import r2_score, mean_absolute_percentage_error
+from sklearn.metrics import r2_score
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
 
 from marigold import CFDiffPipleline
 from src.dataset import CFDDataset
@@ -72,7 +74,7 @@ def get_args():
     parser.add_argument(
         "--ensemble_size",
         type=int,
-        default=2,
+        default=1,
         help="Number of predictions to be ensembled, more inference gives better results but runs slower.",
     )
     parser.add_argument(
@@ -170,43 +172,53 @@ def load_scale(key):
         raise NotImplementedError
 
 
-def evaluate(field_pred, field_label, key, mask=None, denormalize=True):
+def evaluate(pred, label, key, mask, denormalize=False):
+    if len(mask.shape) == 4 or len(mask.shape) == 3:
+        mask = mask.squeeze()
+        pred = pred.squeeze()
+        label = label.squeeze()
+    
     if denormalize:
         stat = load_scale(key)
-        field_pred * (stat['max'] - stat['min']) + stat['min']
-        field_label * (stat['max'] - stat['min']) + stat['min']
+        pred = pred * (stat['max'] - stat['min']) + stat['min']
+        label = label * (stat['max'] - stat['min']) + stat['min']
 
-    if mask is not None:
-        field_pred *= mask
-        field_label *= mask
+    img_true = (label * mask).astype(np.float32)
+    img_pred = (pred * mask).astype(np.float32)
     
     # Flatten arrays to 1D for metric calculations
-    y_true = field_label.flatten()
-    y_pred = field_pred.flatten()
-
-    # # Remove NaNs and Infs
-    # valid_mask = np.isfinite(y_true) & np.isfinite(y_pred)
-    # y_true = y_true[valid_mask]
-    # y_pred = y_pred[valid_mask]
-
+    y_true = label[mask].flatten()
+    y_pred = pred[mask].flatten()
+    
     # Compute metrics
     mae = np.mean(np.abs(y_true - y_pred))
     rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
     r2 = r2_score(y_true, y_pred)
-    mape = mean_absolute_percentage_error(y_true, y_pred) * 100
+    ssim_value = ssim(img_true, img_pred, data_range=img_true.max() - img_true.min())
+    psnr_value = psnr(img_true, img_pred, data_range=img_true.max() - img_true.min())
 
     return {
         'MAE': mae,
         'RMSE': rmse,
         'R2': r2,
-        'MAPE': mape,
+        'SSIM': ssim_value,
+        'PSNR': psnr_value
     }
 
 
 if "__main__" == __name__:
-    logging.basicConfig(level=logging.INFO)
-    
     args = get_args()
+    
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        filename=os.path.join(args.output_dir, 'infer.log'), 
+        filemode='a')
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(handler)
+    
     if args.ensemble_size > 15:
         logging.warning("Running with large ensemble size will be slow.")
 
@@ -291,12 +303,12 @@ if "__main__" == __name__:
     # -------------------- Test Dataset --------------------
     test_dataset = CFDDataset(
         dataset_dir=args.base_data_dir,
-        mode='test',
+        train_mode=False,
     )
     num = len(test_dataset.filenames)
     logging.info(f'Number of samples in Test: {num}')
     # -------------------- Inference and saving --------------------
-    metrics = ['MAE', 'RMSE', 'R2', 'MAPE']
+    metrics = ['MAE', 'RMSE', 'R2', 'SSIM', 'PSNR']
     fields = ['pressure', 'temperature', 'velocity']
     sum_results = {field: {metric: 0. for metric in metrics} for field in fields}
     avg_results = {field: {metric: 0. for metric in metrics} for field in fields}
@@ -334,13 +346,13 @@ if "__main__" == __name__:
             mask = test_data["mask"].squeeze().cpu().numpy()           # (H, W)
 
             res = evaluate(
-                     field_pred=pred,
-                     field_label=label,
+                     pred=pred,
+                     label=label,
                      mask=mask,
                      key=prompt)
             
-            for key, value in res.items():
-                sum_results[prompt][key] += value
+            for metric, value in res.items():
+                sum_results[prompt][metric] += value
                 
             # # Save as npy
             # save_as_npy(depth_pred=depth_pred, 
@@ -360,4 +372,12 @@ if "__main__" == __name__:
         avg_results = {prompt: {metric: value / num for metric, value in value_dict.items()} 
                        for prompt, value_dict in sum_results.items()}
         
-        logging.info(avg_results)
+        # Create markdown table header
+        table =  "| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |\n"
+        table += "|--------|-------|--------|--------|----------|---------|\n"
+        
+        # Add rows for each domain
+        for domain, metrics in avg_results.items():
+            table += f"| {domain} | {metrics['MAE']:.4f} | {metrics['RMSE']:.4f}| {metrics['R2']:.4f} |{metrics['SSIM']:.4f} | {metrics['PSNR']:.4f} |\n"
+        
+        logging.info("\nEvaluation Results:\n" + table)

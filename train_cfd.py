@@ -31,8 +31,16 @@ from omegaconf import OmegaConf
 import torch
 from torch.utils.data import DataLoader
 
+from diffusers import (
+    AutoencoderKL,
+    DDIMScheduler,
+    DiffusionPipeline,
+    LCMScheduler,
+    UNet2DConditionModel,
+)
+# from marigold.unet_2d_condition_cfd import UNet2DConditionModelCFD
 from marigold.cfd_pipeline import CFDiffPipleline
-from src.dataset import DatasetMode, CFDDataset
+from src.dataset import CFDDataset
 from src.trainer import CFDTrainer
 from src.util.config_util import (
     find_value_in_omegaconf,
@@ -62,7 +70,7 @@ def get_args():
     parser.add_argument(
         "--config",
         type=str,
-        default="config/train_marigold.yaml",
+        default="config/train_cfd.yaml",
         help="Path to config file.",
     )
     parser.add_argument(
@@ -242,8 +250,7 @@ if "__main__" == __name__:
     )
     train_dataset = CFDDataset(
         dataset_dir=base_data_dir,
-        mode='train',
-        augmentation_args=cfg.augmentation,
+        train_mode=True,
     )
     logging.debug("Augmentation: ", cfg.augmentation)
     
@@ -259,7 +266,7 @@ if "__main__" == __name__:
     val_loaders: List[DataLoader] = []
     _val_dataset = CFDDataset(
         dataset_dir=base_data_dir,
-        mode='test',
+        train_mode=True,
     )
     _val_loader = DataLoader(
         dataset=_val_dataset,
@@ -273,7 +280,7 @@ if "__main__" == __name__:
     vis_loaders: List[DataLoader] = []
     _vis_dataset = CFDDataset(
         dataset_dir=base_data_dir,
-        mode='test',
+        train_mode=True,
     )
     _vis_loader = DataLoader(
         dataset=_vis_dataset,
@@ -286,11 +293,12 @@ if "__main__" == __name__:
     # -------------------- Model --------------------
     _pipeline_kwargs = cfg.pipeline.kwargs if cfg.pipeline.kwargs is not None else {}
     ckpt_path = os.path.join(base_ckpt_dir, cfg.model.pretrained_path)
-    logging.debug(f"Checkpoint path: {ckpt_path}")
+    logging.info(f"Checkpoint path: {ckpt_path}")
 
     model = CFDiffPipleline.from_pretrained(
         ckpt_path, **_pipeline_kwargs
     )
+
     # -------------------- Trainer --------------------
     # Exit time
     if args.exit_after > 0:

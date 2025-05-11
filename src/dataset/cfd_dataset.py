@@ -19,7 +19,7 @@ STAT_velocity={'min': 0.0, 'max':0.3930110071636349}
 class CFDDataset(Dataset):
     def __init__(self, 
                  dataset_dir, 
-                 mode='train',
+                 train_mode=True,
                  make_mask=True,
                 ):
         
@@ -31,10 +31,10 @@ class CFDDataset(Dataset):
         self.velocity_dir = os.path.join(dataset_dir, 'velocity')
         # self.filenames = sorted(os.listdir(self.contour_dir))
         self.target_names = []
-        self.mode = mode
+        self.mode = train_mode
         self.make_mask = make_mask
         
-        if mode == 'train':
+        if train_mode:
             self.disp_name = 'CFD Train'
             with open(os.path.join(dataset_dir, 'list_train.txt'),'r') as f:
                 filenames = f.readlines()

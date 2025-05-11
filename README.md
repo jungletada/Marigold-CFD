@@ -205,22 +205,10 @@ Install additional dependencies:
 pip install -r requirements+.txt -r requirements.txt
 ```
 
-Set data directory variable (also needed in evaluation scripts) and download [evaluation datasets](https://share.phys.ethz.ch/~pf/bingkedata/marigold/evaluation_dataset) into corresponding subfolders:
-
-```bash
-export BASE_DATA_DIR=<YOUR_DATA_DIR>  # Set target data directory
-
-wget -r -np -nH --cut-dirs=4 -R "index.html*" -P ${BASE_DATA_DIR} https://share.phys.ethz.ch/~pf/bingkedata/marigold/evaluation_dataset/
-```
-
 Run inference and evaluation scripts, for example:
 
 ```bash
-# Run inference
-bash script/eval/11_infer_nyu.sh
-
-# Evaluate predictions
-bash script/eval/12_eval_nyu.sh
+python infer_cfd.py
 ```
 
 Note: although the seed has been set, the results might still be slightly different on different hardware.
@@ -267,18 +255,39 @@ Only the U-Net is updated and saved during training. To use the inference pipeli
 
 Please refer to [this](CONTRIBUTING.md) instruction.
 
-## Quantitive Results
-|              |    MAE |   RMSE |    R2  |    MAPE |
-|:-------------|-------:|-------:|-------:|--------:|
-| pressure     |  0.0598|  0.0767|  0.8698|  27.2687|
-| temperature  |  0.0256|  0.0407|  0.8941|  24.3532|
-| velocity     |  0.0336|  0.0549|  0.9560|  13.4108|
+## Quantitive Results 
+### **CFDiff**
+| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |
+|--------|-------|--------|--------|----------|---------|
+| pressure | 0.0473 | 0.0604| 0.9113 |0.8803 | 24.6692 |
+| temperature | 0.0188 | 0.0384| 0.9002 |0.9208 | 29.0947 |
+| velocity | 0.0314 | 0.0541| 0.9534 |0.7868 | 25.4847 |
+
+### **StarGAN v2**
+| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |
+|--------|-------|--------|--------|----------|---------|
+| pressure | 0.0788 | 0.1001| 0.7654 |0.8346 | 19.9828 |
+| temperature | 0.0783 | 0.1352| 0.6274 |0.7865 | 17.5058 |
+| velocity | 0.1158 | 0.1538| 0.6539 |0.6275 | 16.5499 |
 
 
+### **UNet**
+| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |
+|--------|-------|--------|--------|----------|---------|
+| pressure | 0.0679 | 0.0898| 0.8081 |0.8091 | 20.9107 |
+| temperature | 0.0493 | 0.0655| 0.7406 |0.8475 | 23.6386 |
+| velocity | 0.1273 | 0.1696| 0.5970 |0.5967 | 15.4382 |
 
+
+### **DeepCFD**
+| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |
+|--------|-------|--------|--------|----------|---------|
+| pressure | 0.0612 | 0.0803| 0.8383 |0.8262 | 21.8814 |
+| temperature | 0.0340 | 0.0558| 0.8038 |0.8640 | 25.1646 |
+| velocity | 0.0734 | 0.1035| 0.8416 |0.7104 | 19.9408 |
 ## 🎓 Citation
 
-Please cite our paper:
+Please cite marigold paper:
 
 ```bibtex
 @InProceedings{ke2023repurposing,

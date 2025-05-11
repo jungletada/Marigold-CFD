@@ -39,7 +39,7 @@ from torchvision.transforms.functional import pil_to_tensor, resize
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
 
-from .models.unet_2d_condition_cfd import UNet2DConditionModelCFD
+# from .unet_2d_condition_cfd import UNet2DConditionModelCFD
 from .util.batchsize import find_batch_size
 from .util.ensemble import ensemble_depth
 from .util.image_util import (
@@ -454,3 +454,4 @@ class CFDiffPipleline(DiffusionPipeline):
         # mean of output channels
         depth_mean = stacked.mean(dim=1, keepdim=True)
         return depth_mean
+    

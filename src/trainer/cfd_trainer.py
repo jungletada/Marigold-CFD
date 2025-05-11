@@ -29,16 +29,18 @@ from typing import List, Union
 
 import torch
 import numpy as np
+from tqdm import tqdm
+from PIL import Image
 from diffusers import DDPMScheduler
 from omegaconf import OmegaConf
+
 from torch.nn import Conv2d
 from torch.nn.parameter import Parameter
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from tqdm import tqdm
-from PIL import Image
 
+from marigold.cross_attention import CrossAttentionFusion
 from src.util import metric
 from src.util.data_loader import skip_first_batches
 from src.util.logging_util import tb_logger, eval_dic_to_text
@@ -79,10 +81,11 @@ class CFDTrainer:
         self.val_loaders: List[DataLoader] = val_dataloaders
         self.vis_loaders: List[DataLoader] = vis_dataloaders
         self.accumulation_steps: int = accumulation_steps
-
+        
         # Adapt input layers, from input channels 4 to 12.
-        if self.model.unet.config["in_channels"] != 12:
-            self._replace_unet_conv_in()
+        # if self.model.unet.config["in_channels"] != 12:
+        #     self._replace_unet_conv_in()
+        self.set_input_cross_attention()
 
         self.model.unet.enable_xformers_memory_efficient_attention()
 
@@ -164,9 +167,10 @@ class CFDTrainer:
 
     def _replace_unet_conv_in(self):
         in_channels = 12
-        # replace the first layer to accept 8 in_channels
+        # replace the first layer to accept 12 in_channels
         _weight = self.model.unet.conv_in.weight.clone()  # [320, 4, 3, 3]
         _bias = self.model.unet.conv_in.bias.clone()  # [320]
+        
         _weight = _weight.repeat((1, 3, 1, 1))  # Keep selected channel(s)
         # half the activation magnitude
         _weight = _weight / 3
@@ -182,6 +186,13 @@ class CFDTrainer:
         # replace config
         self.model.unet.config["in_channels"] = in_channels
         logging.info("Unet config is updated")
+        return
+
+    def set_input_cross_attention(self):
+        self.model.unet.conv_in = CrossAttentionFusion()
+        logging.info("Unet conv_in layer is replaced")
+        # replace config
+        # logging.info("Unet config is updated")
         return
 
     def train(self, t_end=None):
@@ -287,6 +298,7 @@ class CFDTrainer:
                 model_pred = self.model.unet(
                     cat_latents, timesteps, text_embed
                 ).sample  # [B, 4, h, w]
+                
                 if torch.isnan(model_pred).any():
                     logging.warning("model_pred contains NaN.")
 
