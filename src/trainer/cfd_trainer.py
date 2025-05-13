@@ -191,8 +191,6 @@ class CFDTrainer:
     def set_input_cross_attention(self):
         self.model.unet.conv_in = CrossAttentionFusion()
         logging.info("Unet conv_in layer is replaced")
-        # replace config
-        # logging.info("Unet config is updated")
         return
 
     def train(self, t_end=None):

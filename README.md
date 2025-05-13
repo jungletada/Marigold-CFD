@@ -242,7 +242,7 @@ python train_cfd.py --config config/train_cfd.yaml --no_wandb
 Resume from a checkpoint, e.g.
 
 ```bash
-python train.py --resume_run output/train_cfd/checkpoint/latest
+python train_cfd.py --resume_run output/train_cfd/checkpoint/latest --no_wandb
 ```
 
 Evaluating results
@@ -262,6 +262,15 @@ Please refer to [this](CONTRIBUTING.md) instruction.
 | pressure | 0.0473 | 0.0604| 0.9113 |0.8803 | 24.6692 |
 | temperature | 0.0188 | 0.0384| 0.9002 |0.9208 | 29.0947 |
 | velocity | 0.0314 | 0.0541| 0.9534 |0.7868 | 25.4847 |
+
+
+### **DPT-Hybird**
+| Domain |   MAE   |   RMSE   |   R2   |   SSIM   |   PSNR   |
+|--------|---------|----------|--------|----------|----------|
+| pressure | 0.0550 | 0.0729| 0.8710 |0.8030 | 21.4104 |
+| temperature | 0.0276 | 0.0500| 0.8842 |0.8152 | 25.7584 |
+| velocity | 0.0480 | 0.0689| 0.9461 |0.7013 | 22.6815 |
+
 
 ### **StarGAN v2**
 | Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |

@@ -31,14 +31,6 @@ from omegaconf import OmegaConf
 import torch
 from torch.utils.data import DataLoader
 
-from diffusers import (
-    AutoencoderKL,
-    DDIMScheduler,
-    DiffusionPipeline,
-    LCMScheduler,
-    UNet2DConditionModel,
-)
-# from marigold.unet_2d_condition_cfd import UNet2DConditionModelCFD
 from marigold.cfd_pipeline import CFDiffPipleline
 from src.dataset import CFDDataset
 from src.trainer import CFDTrainer
