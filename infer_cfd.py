@@ -26,15 +26,14 @@ from PIL import Image
 import logging
 import torch
 from tqdm.auto import tqdm
-from sklearn.metrics import r2_score
-from skimage.metrics import structural_similarity as ssim
-from skimage.metrics import peak_signal_noise_ratio as psnr
 
 from marigold import CFDiffPipleline
+from diffusers import UNet2DConditionModel, AutoencoderKL, DDIMScheduler
+from transformers import CLIPTextModel, CLIPTokenizer
+
 from src.dataset import CFDDataset
-from src.dataset.cfd_dataset import \
-    (STAT_pressure, STAT_temperature, STAT_velocity)
-EXTENSION_LIST = [".jpg", ".jpeg", ".png"]
+from marigold.cross_attention import CrossAttentionFusion
+from src.util.evaluator import Evaluator
 
 
 def get_args():
@@ -42,13 +41,21 @@ def get_args():
     parser = argparse.ArgumentParser(
         description="Run single-image depth estimation using Marigold."
     )
+    
     parser.add_argument(
-        "--checkpoint",
+        "--sd_checkpoint",
         type=str,
         default="checkpoint/stable-diffusion-2",
         help="Checkpoint path or hub name.",
     )
-
+    
+    parser.add_argument(
+        "--train_checkpoint",
+        type=str,
+        default="output/train_cfd/checkpoint/iter_006000/unet/diffusion_pytorch_model.bin",
+        help="Checkpoint path after training.",
+    )
+    
     parser.add_argument(
         "--base_data_dir", 
         type=str, 
@@ -123,7 +130,7 @@ def get_args():
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=0,
+        default=4,
         help="Inference batch size. Default: 0 (will be set automatically).",
     )
     parser.add_argument(
@@ -160,50 +167,6 @@ def save_as_color(depth_colored, output_dir_color, pred_name_base):
         )
     depth_colored.save(colored_save_path)
     
-
-def load_scale(key):
-    if key.__contains__('pressure'):
-        return STAT_pressure
-    elif key.__contains__('temperature'):
-        return STAT_temperature
-    elif key.__contains__('velocity'):
-        return STAT_velocity
-    else:
-        raise NotImplementedError
-
-
-def evaluate(pred, label, key, mask, denormalize=False):
-    if len(mask.shape) == 4 or len(mask.shape) == 3:
-        mask = mask.squeeze()
-        pred = pred.squeeze()
-        label = label.squeeze()
-    
-    if denormalize:
-        stat = load_scale(key)
-        pred = pred * (stat['max'] - stat['min']) + stat['min']
-        label = label * (stat['max'] - stat['min']) + stat['min']
-
-    img_true = (label * mask).astype(np.float32)
-    img_pred = (pred * mask).astype(np.float32)
-    
-    # Flatten arrays to 1D for metric calculations
-    y_true = label[mask].flatten()
-    y_pred = pred[mask].flatten()
-    
-    # Compute metrics
-    mae = np.mean(np.abs(y_true - y_pred))
-    rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
-    r2 = r2_score(y_true, y_pred)
-    ssim_value = ssim(img_true, img_pred, data_range=img_true.max() - img_true.min())
-    psnr_value = psnr(img_true, img_pred, data_range=img_true.max() - img_true.min())
-
-    return {
-        'MAE': mae,
-        'RMSE': rmse,
-        'R2': r2,
-        'SSIM': ssim_value,
-        'PSNR': psnr_value
-    }
 
 
 if "__main__" == __name__:
@@ -277,9 +240,28 @@ if "__main__" == __name__:
         dtype = torch.float32
         variant = None
 
-    pipeline = CFDiffPipleline.from_pretrained(
-        args.checkpoint, variant=variant, torch_dtype=dtype
-    )
+    # pipeline = CFDiffPipleline.from_pretrained(
+    #     args.checkpoint, variant=variant, torch_dtype=dtype)
+    unet = UNet2DConditionModel.from_config(args.sd_checkpoint, subfolder="unet")
+    unet.conv_in = CrossAttentionFusion()
+    
+    # Load the trained checkpoint weights
+    state_dict = torch.load(args.train_checkpoint, map_location='cpu')
+    unet.load_state_dict(state_dict)
+    
+    vae = AutoencoderKL.from_pretrained(args.sd_checkpoint, subfolder="vae")
+    scheduler = DDIMScheduler.from_pretrained(args.sd_checkpoint, subfolder="scheduler")
+    text_encoder = CLIPTextModel.from_pretrained(args.sd_checkpoint, subfolder="text_encoder")
+    tokenizer = CLIPTokenizer.from_pretrained(args.sd_checkpoint, subfolder="tokenizer")
+    
+    pipeline = CFDiffPipleline(
+                unet=unet,
+                vae=vae,
+                scheduler=scheduler,
+                text_encoder=text_encoder,
+                tokenizer=tokenizer,
+            )
+    
     try:
         pipeline.enable_xformers_memory_efficient_attention()
     except ImportError:
@@ -293,7 +275,7 @@ if "__main__" == __name__:
 
     # Print out config
     logging.info(
-        f"Inference settings: checkpoint = `{args.checkpoint}`, "
+        f"Inference settings: checkpoint = `{args.sd_checkpoint}`, "
         f"with denoise_steps = {args.denoise_steps or pipeline.default_denoising_steps}, "
         f"ensemble_size = {args.ensemble_size}, "
         f"processing resolution = {processing_res or pipeline.default_processing_resolution}, "
@@ -305,16 +287,21 @@ if "__main__" == __name__:
         dataset_dir=args.base_data_dir,
         train_mode=False,
     )
-    num = len(test_dataset.filenames)
-    logging.info(f'Number of samples in Test: {num}')
+    test_dataloader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,  # Since we're doing inference, batch size is 1
+        shuffle=False,  # No need to shuffle during inference
+        num_workers=4,  # Adjust based on your system
+        pin_memory=True  # Helps with faster data transfer to GPU
+    )
+    
+    num_samples = len(test_dataset.filenames)
+    logging.info(f'Number of samples in Test: {num_samples}')
+    evaluator = Evaluator(num_samples)
     # -------------------- Inference and saving --------------------
-    metrics = ['MAE', 'RMSE', 'R2', 'SSIM', 'PSNR']
-    fields = ['pressure', 'temperature', 'velocity']
-    sum_results = {field: {metric: 0. for metric in metrics} for field in fields}
-    avg_results = {field: {metric: 0. for metric in metrics} for field in fields}
     
     with torch.no_grad():
-        for test_data in tqdm(test_dataset, desc="Estimating depth", leave=True):
+        for test_data in tqdm(test_dataset, desc="Estimating", leave=True):
             # Random number generator
             if seed is None:
                 generator = None
@@ -338,22 +325,19 @@ if "__main__" == __name__:
 
             pred: np.ndarray = pipe_out.depth_np
             depth_colored: Image.Image = pipe_out.depth_colored
-            prompt = test_data['prompt'].replace(' field', "")
-            pred_name_base = test_data['file_name'] + '_' + prompt
+            field = test_data['prompt'].replace(' field', '')
+            pred_name_base = test_data['file_name'] + '_' + field
 
             label = (test_data["outputs"] + 1.) / 2.   
             label = torch.clip(label, 0., 1.).squeeze().cpu().numpy()  # (H, W)
             mask = test_data["mask"].squeeze().cpu().numpy()           # (H, W)
 
-            res = evaluate(
-                     pred=pred,
-                     label=label,
-                     mask=mask,
-                     key=prompt)
-            
-            for metric, value in res.items():
-                sum_results[prompt][metric] += value
-                
+            res_single = evaluator.evaluate_single(
+                        pred=pred,
+                        label=label,
+                        field=field,
+                        mask=mask)
+            # logging.info(res_single)
             # # Save as npy
             # save_as_npy(depth_pred=depth_pred, 
             #             output_dir_npy=output_dir_npy, 
@@ -369,15 +353,7 @@ if "__main__" == __name__:
             #               output_dir_color=output_dir_color,
             #               pred_name_base=pred_name_base)
             
-        avg_results = {prompt: {metric: value / num for metric, value in value_dict.items()} 
-                       for prompt, value_dict in sum_results.items()}
-        
-        # Create markdown table header
-        table =  "| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |\n"
-        table += "|--------|-------|--------|--------|----------|---------|\n"
-        
-        # Add rows for each domain
-        for domain, metrics in avg_results.items():
-            table += f"| {domain} | {metrics['MAE']:.4f} | {metrics['RMSE']:.4f}| {metrics['R2']:.4f} |{metrics['SSIM']:.4f} | {metrics['PSNR']:.4f} |\n"
-        
-        logging.info("\nEvaluation Results:\n" + table)
+
+    evaluator.compute_average()
+    res = evaluator.show_average_results()
+    logging.info(res)

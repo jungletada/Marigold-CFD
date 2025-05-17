@@ -256,7 +256,15 @@ Only the U-Net is updated and saved during training. To use the inference pipeli
 Please refer to [this](CONTRIBUTING.md) instruction.
 
 ## Quantitive Results 
-### **CFDiff**
+### **CFDiff (Ours)**
+| Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |
+|--------|-------|--------|--------|----------|---------|
+| pressure | 0.0473 | 0.0604| 0.9113 |0.8803 | 24.6692 |
+| temperature | 0.0188 | 0.0384| 0.9002 |0.9208 | 29.0947 |
+| velocity | 0.0314 | 0.0541| 0.9534 |0.7868 | 25.4847 |
+
+------
+### **Marigold**
 | Domain |  MAE  |  RMSE  |   R2   |   SSIM   |   PSNR  |
 |--------|-------|--------|--------|----------|---------|
 | pressure | 0.0473 | 0.0604| 0.9113 |0.8803 | 24.6692 |
